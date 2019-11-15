@@ -13,12 +13,13 @@
 
 #define MAX_MSG 100
 
-#define TRADER_KEY 0x1111
-#define ITEM_KEY 0x1112
-#define BUY_KEY 0x1113
-#define SELL_KEY 0x1114
-
 #define MEM_SZ 4096
+
+#define TRADER_KEY 0x1000
+#define ITEM_KEY 0x1100
+#define BUY_KEY 0x1200
+#define SELL_KEY 0x1300
+#define TRADE_KEY 0x1400
 
 struct trader
 {
@@ -30,7 +31,6 @@ struct trader
 struct item
 {
     int id;
-    char *name;
     int bestBuy;
     int bestSell;
     int quantity;
@@ -43,7 +43,6 @@ struct buyQueue
     int itemId;
     int quantity;
     int price;
-    int flag;
 };
 
 struct sellQueue
@@ -53,7 +52,6 @@ struct sellQueue
     int itemId;
     int quantity;
     int price;
-    int flag;
 };
 
 struct tradeQueue
@@ -128,17 +126,9 @@ int main(int argc, char *argv[])
             void *memT = (void *)0;
             struct item *items;
             srand((unsigned int)getpid());
-            // char *itemKeyString = "items";
-            // key_t itemKey = ftok(itemKeyString, 65);
-            int shmItemId = shmget((key_t)1256, MEM_SZ, 0666 | IPC_CREAT);
+            int shmItemId = shmget((key_t)ITEM_KEY, sizeof(struct item), 0666 | IPC_CREAT);
             memT = shmat(shmItemId, (void *)0, 0);
-            printf("Memory attached at %X\n", (int)memT);
             items = (struct item *)memT;
-            for (i = 0; i < 3; i++)
-            {
-                int shmInameId = shmget((key_t)1010 + i, sizeof(char), 0666 | IPC_CREAT);
-                (items + i)->name = (char *)shmat(shmInameId, 0, 0);
-            }
 
             while (1)
             {
@@ -149,19 +139,46 @@ int main(int argc, char *argv[])
                 printf("\n\t4 - Status of your trades");
                 printf("\n\t5 - Exit");
                 printf("\n\nPlease select your choice: ");
-                int choice;
+                int choice, quantity, price, itemId;
                 scanf("%d", &choice);
                 switch (choice)
                 {
                 case 1:
+                    printf("\nDetails  of the trade items:");
                     for (i = 0; i < 3; i++)
                     {
-                        printf("\nItem %d (%s) - %d no of items", (items + i)->id, (items + i)->name, (items + i)->quantity);
-                        printf("\n\tBest buy: %d", (items + i)->bestBuy);
-                        printf("\n\tBest Sell: %d\n", (items + i)->bestSell);
+                        printf("\n\tItem %d - %d no of items", items[i].id, items[i].quantity);
+                        printf("\n\t\tBest buy: %d", items[i].bestBuy);
+                        printf("\n\t\tBest Sell: %d\n", items[i].bestSell);
                     }
                     break;
 
+                case 2:
+                    printf("\nEnter the details of the item you want to sell:");
+                    printf("\nEnter the item id, price offered, and no of units: ");
+                    scanf("%d%d%d", &itemId, &price, &quantity);
+                    if (itemId < 1 || itemId > 5)
+                    {
+                        printf("\nItem doesn't exist. Please try again!");
+                        break;
+                    }
+                    sprintf(buf, "1 %d %d %d ", itemId, price, quantity);
+                    send(sd, buf, strlen(buf) + 1, 0);
+                    printf("\nRequest sent\n");
+                    break;
+
+                case 3:
+                    printf("\nEnter the details of the item you want to buy:");
+                    printf("\nEnter the item id, price offered, and no of units: ");
+                    scanf("%d%d%d", &itemId, &price, &quantity);
+                    if (itemId < 1 || itemId > 5)
+                    {
+                        printf("\nItem doesn't exist. Please try again!");
+                        break;
+                    }
+                    sprintf(buf, "2 %d %d %d ", itemId, price, quantity);
+                    send(sd, buf, strlen(buf) + 1, 0);
+                    break;
                 case 5:
                     printf("\nLogged you out!\nExiting...\n");
                     sprintf(buf, "exit");
