@@ -72,17 +72,12 @@ int main(int argc, char *argv[])
 
     struct sockaddr_in localAddr, servAddr;
     char buf[MAX_MSG];
-    if (argc < 3)
-    {
-        fprintf(stderr, "Usage: %s <server IP>  <Server Port> \n", argv[0]);
-        exit(1);
-    }
 
     /* build socket address data structure */
     bzero((char *)&servAddr, sizeof(servAddr));
     servAddr.sin_family = AF_INET;
-    servAddr.sin_addr.s_addr = inet_addr(argv[1]);
-    servAddr.sin_port = htons(atoi(argv[2]));
+    servAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    servAddr.sin_port = htons(7076);
 
     /* create socket, active open */
     sd = socket(AF_INET, SOCK_STREAM, 0);
@@ -100,7 +95,7 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-    printf("\nConnected to the server %s at TCP port %s \n", argv[1], argv[2]);
+    printf("\nConnected to the server 127.0.0.1 at TCP port 7076 \n");
 
     printf("\nEnter user id to log in: ");
     scanf("%s", buf);
@@ -152,7 +147,6 @@ int main(int argc, char *argv[])
                         printf("\n\t\tBest Sell: %d\n", items[i].bestSell);
                     }
                     break;
-
                 case 2:
                     printf("\nEnter the details of the item you want to sell:");
                     printf("\nEnter the item id, price offered, and no of units: ");
