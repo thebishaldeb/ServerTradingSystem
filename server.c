@@ -1,42 +1,28 @@
 /* TCPsERver.c */
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/wait.h>
 #include <netdb.h>
 #include <unistd.h>
 #include <string.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/ipc.h>
-#include <sys/sem.h>
 #include <sys/shm.h>
-#include <sys/msg.h>
+#include <sys/stat.h>
 
 #define MAX_CLIENT 5
 #define MAX_MSG 100
 
 #define TRADER_KEY 0x1000
-#define ITEM_KEY 0x1100
-#define BUY_KEY 0x1200
-#define SELL_KEY 0x1300
-#define TRADE_KEY 0x1400
-
-#define MEM_SZ 4096
 
 struct trader
 {
     int id;
     char *name;
     int flag;
-};
-
-struct item
-{
-    int id;
-    int bestBuy;
-    int bestSell;
-    int quantity;
 };
 
 struct buyQueue
@@ -55,17 +41,6 @@ struct sellQueue
     int quantity;
     int price;
     struct sellQueue *next;
-};
-
-struct tradeQueue
-{
-    int customerId;
-    int sellerId;
-    int sellId;
-    int itemId;
-    int quantity;
-    int price;
-    struct tradeQueue *next;
 };
 
 int main(int argc, char *argv[])
@@ -87,26 +62,14 @@ int main(int argc, char *argv[])
         sprintf((traders + i)->name, "Trader %d", i + 1);
     }
 
-    // Items List
-    void *memT = (void *)0;
-    struct item *items;
-    srand((unsigned int)getpid());
-    int shmItemId = shmget((key_t)ITEM_KEY, sizeof(struct item), 0666 | IPC_CREAT);
-    memT = shmat(shmItemId, (void *)0, 0);
-    items = (struct item *)memT;
-    for (i = 0; i < 3; i++)
-    {
-        (items + i)->id = i + 1;
-        (items + i)->quantity = 0;
-        (items + i)->bestSell = 0;
-        (items + i)->bestBuy = 0;
-    }
-
     struct buyQueue *buyhead, *tempBuy = NULL, *buyList;
     struct sellQueue *sellhead, *tempSell = NULL, *sellList;
 
     int quantity, price, itemId;
     int quantityTemp, priceTemp, itemIdTemp, userIdTemp;
+
+    int fd;
+    struct flock f1;
 
     int sd, newSd, cliLen, len;
     struct sockaddr_in cliAddr, servAddr;
@@ -136,7 +99,6 @@ int main(int argc, char *argv[])
 
     listen(sd, MAX_CLIENT);
 
-    i = 1;
     pid_t child;
     while (1)
     {
@@ -195,7 +157,7 @@ int main(int argc, char *argv[])
                         if (!strcmp(buf, "exit"))
                         {
                             printf("\nTrader %d logged out!\n", userId);
-                            traders[i - 1].flag = 0;
+                            traders[userId - 1].flag = 0;
                             close(newSd);
                             shmdt(traders);
                             exit(0);
@@ -205,6 +167,18 @@ int main(int argc, char *argv[])
                             sscanf(buf, "%d ", &textchecker);
                             if (textchecker == 1) // SELL
                             {
+                                f1.l_type = F_WRLCK;
+                                f1.l_whence = SEEK_SET;
+                                f1.l_start = 0;
+                                f1.l_len = 0;
+                                f1.l_pid = getpid();
+                                if ((fd = open("lock.txt", O_RDWR)) == -1)
+                                {
+                                    perror("\nError in opening the file!");
+                                    exit(1);
+                                }
+                                while (fcntl(fd, F_SETLK, &f1) < 0)
+                                    ;
                                 sscanf(buf, "%*d %d %d %d ", &itemId, &price, &quantity);
                                 printf("\nSale requested of %d no of item %d at %d by trader %d\n", quantity, itemId, price, userId);
                                 FILE *buy = fopen("buy.txt", "r"),
@@ -215,6 +189,7 @@ int main(int argc, char *argv[])
                                 while (fgets(buffer, 100, buy) != NULL)
                                 {
                                     sscanf(buffer, "%d %d %d %d", &userIdTemp, &itemIdTemp, &priceTemp, &quantityTemp);
+                                    printf("\n NEE 1 - %d %d %d %d\n", userIdTemp, itemIdTemp, priceTemp, quantityTemp);
                                     buyList->itemId = itemIdTemp;
                                     buyList->quantity = quantityTemp;
                                     buyList->price = priceTemp;
@@ -233,8 +208,10 @@ int main(int argc, char *argv[])
                                     {
                                         if (buyList->quantity > quantity)
                                         {
-                                            buyList->quantity = buyList->quantity - quantity;
+                                            int tempQ = buyList->quantity - quantity;
+                                            buyList->quantity = tempQ;
                                             fprintf(trade, "%d %d %d %d %d\n", userId, buyList->userId, itemId, buyList->price, quantity);
+                                            quantity = 0;
                                             break;
                                         }
                                         else
@@ -262,7 +239,6 @@ int main(int argc, char *argv[])
                                 while (buyhead->next != NULL)
                                 {
                                     fprintf(buyW, "%d %d %d %d\n", buyhead->userId, buyhead->itemId, buyhead->price, buyhead->quantity);
-                                    // printf("%d %d %d %d\n", buyhead->userId, buyhead->itemId, buyhead->price, buyhead->quantity);
                                     tempBuy = buyhead;
                                     buyhead = tempBuy->next;
                                     free(tempBuy);
@@ -272,33 +248,40 @@ int main(int argc, char *argv[])
                                 fclose(buyW);
                                 fclose(sell);
                                 fclose(trade);
+                                f1.l_type = F_UNLCK;
+                                fcntl(fd, F_SETLK, &f1);
+                                close(fd);
                             }
                             else if (textchecker == 2) // BUY
                             {
+                                f1.l_type = F_WRLCK;
+                                f1.l_whence = SEEK_SET;
+                                f1.l_start = 0;
+                                f1.l_len = 0;
+                                f1.l_pid = getpid();
+                                if ((fd = open("lock.txt", O_RDWR)) == -1)
+                                {
+                                    perror("\nError in opening the file!");
+                                    exit(1);
+                                }
+                                while (fcntl(fd, F_SETLK, &f1) < 0)
+                                    ;
                                 sscanf(buf, "%*d %d %d %d ", &itemId, &price, &quantity);
                                 printf("\nBuy requested of %d no of item %d at %d by trader %d\n", quantity, itemId, price, userId);
                                 FILE *buy = fopen("buy.txt", "a"),
                                      *sell = fopen("sell.txt", "r"),
                                      *trade = fopen("trades.txt", "a");
                                 sellhead = (struct sellQueue *)malloc(sizeof(struct sellQueue));
-                                tempSell = NULL;
                                 sellList = sellhead;
                                 while (fgets(buffer, 100, sell) != NULL)
                                 {
                                     sscanf(buffer, "%d %d %d %d", &userIdTemp, &itemIdTemp, &priceTemp, &quantityTemp);
-                                    printf("\n NEE 1 - %d %d %d %d\n", userIdTemp, itemIdTemp, priceTemp, quantityTemp);
                                     sellList->itemId = itemIdTemp;
-                                    printf("\n1\n");
                                     sellList->quantity = quantityTemp;
-                                    printf("\n2\n");
                                     sellList->price = priceTemp;
-                                    printf("\n3\n");
                                     sellList->userId = userIdTemp;
-                                    printf("\n4\n");
                                     sellList->next = (struct sellQueue *)malloc(sizeof(struct sellQueue));
-                                    printf("\n5\n");
                                     sellList = sellList->next;
-                                    printf("\n6\n");
                                 }
                                 sellList->next = NULL;
                                 fclose(sell);
@@ -311,8 +294,10 @@ int main(int argc, char *argv[])
                                     {
                                         if (sellList->quantity > quantity)
                                         {
-                                            sellList->quantity = sellList->quantity - quantity;
+                                            int tempQ = sellList->quantity - quantity;
+                                            sellList->quantity = tempQ;
                                             fprintf(trade, "%d %d %d %d %d\n", sellList->userId, userId, itemId, sellList->price, quantity);
+                                            quantity = 0;
                                             break;
                                         }
                                         else
@@ -350,6 +335,9 @@ int main(int argc, char *argv[])
                                 fclose(buy);
                                 fclose(sellW);
                                 fclose(trade);
+                                f1.l_type = F_UNLCK;
+                                fcntl(fd, F_SETLK, &f1);
+                                close(fd);
                             }
                         }
                     }
@@ -357,8 +345,6 @@ int main(int argc, char *argv[])
             }
         }
         else
-        {
             close(newSd);
-        }
     }
 }
