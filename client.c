@@ -8,25 +8,10 @@
 #include <unistd.h>
 #include <string.h>
 #include <sys/ipc.h>
-#include <sys/sem.h>
-#include <sys/shm.h>
 
 #define MAX_MSG 100
 
 #define MEM_SZ 4096
-
-#define TRADER_KEY 0x1000
-#define ITEM_KEY 0x1100
-#define BUY_KEY 0x1200
-#define SELL_KEY 0x1300
-#define TRADE_KEY 0x1400
-
-struct trader
-{
-    int id;
-    char *name;
-    int flag;
-};
 
 struct item
 {
@@ -67,12 +52,16 @@ struct tradeQueue
 int main(int argc, char *argv[])
 {
     int i;
-    char *traderKeyString, *buyKeyString, *sellKeyString;
     int sd, rc, len;
 
-    struct sockaddr_in localAddr, servAddr;
-    char buf[MAX_MSG];
+    int choice, quantity, price, itemId, sellId, buyId, userId;
 
+    struct sockaddr_in localAddr, servAddr;
+    char buf[MAX_MSG], buffer[MAX_MSG];
+
+    FILE *buy = fopen("buy.txt", "a"),
+         *sell,
+         *trade = fopen("trades.txt", "a");
     /* build socket address data structure */
     bzero((char *)&servAddr, sizeof(servAddr));
     servAddr.sin_family = AF_INET;
@@ -98,7 +87,8 @@ int main(int argc, char *argv[])
     printf("\nConnected to the server 127.0.0.1 at TCP port 7076 \n");
 
     printf("\nEnter user id to log in: ");
-    scanf("%s", buf);
+    scanf("%d", &userId);
+    sprintf(buf, "%d", userId);
     send(sd, buf, strlen(buf) + 1, 0);
 
     if (len = read(sd, buf, sizeof(buf)))
@@ -118,34 +108,20 @@ int main(int argc, char *argv[])
         else
         {
             printf("\nLogged you in!\n");
-            void *memT = (void *)0;
-            struct item *items;
-            srand((unsigned int)getpid());
-            int shmItemId = shmget((key_t)ITEM_KEY, sizeof(struct item), 0666 | IPC_CREAT);
-            memT = shmat(shmItemId, (void *)0, 0);
-            items = (struct item *)memT;
-
             while (1)
             {
                 printf("\nChoose a number among the following options: ");
-                printf("\n\t1 - The status of all the items");
+                printf("\n\t1 - The status of the items");
                 printf("\n\t2 - Sell an item");
                 printf("\n\t3 - Buy an item");
                 printf("\n\t4 - Status of your trades");
                 printf("\n\t5 - Exit");
                 printf("\n\nPlease select your choice: ");
-                int choice, quantity, price, itemId;
                 scanf("%d", &choice);
                 switch (choice)
                 {
                 case 1:
                     printf("\nDetails  of the trade items:");
-                    for (i = 0; i < 3; i++)
-                    {
-                        printf("\n\tItem %d - %d no of items", items[i].id, items[i].quantity);
-                        printf("\n\t\tBest buy: %d", items[i].bestBuy);
-                        printf("\n\t\tBest Sell: %d\n", items[i].bestSell);
-                    }
                     break;
                 case 2:
                     printf("\nEnter the details of the item you want to sell:");
@@ -159,6 +135,8 @@ int main(int argc, char *argv[])
                     sprintf(buf, "1 %d %d %d ", itemId, price, quantity);
                     send(sd, buf, strlen(buf) + 1, 0);
                     printf("\nRequest sent\n");
+                    if (len = read(sd, buf, sizeof(buf)))
+                        printf("%s\n", buf);
                     break;
 
                 case 3:
@@ -172,6 +150,24 @@ int main(int argc, char *argv[])
                     }
                     sprintf(buf, "2 %d %d %d ", itemId, price, quantity);
                     send(sd, buf, strlen(buf) + 1, 0);
+                    printf("\nRequest sent\n");
+                    if (len = read(sd, buf, sizeof(buf)))
+                        printf("%s\n", buf);
+                    break;
+                case 4:
+                    trade = fopen("trades.txt", "r");
+                    printf("\nYour trade status:");
+                    printf("\nSeller\tBuyer\tItem\tQuantity\tPrice per item");
+                    while (fgets(buffer, 100, trade) != NULL)
+                    {
+                        // printf("\nEntered");
+                        sscanf(buffer, "%d %d %d %d %d\n", &sellId, &buyId, &itemId, &price, &quantity);
+                        // printf("\n TEEHEE %d\t%d\tItem %d\t%d\t%d", sellId, buyId, itemId, price, quantity);
+                        if (sellId == userId || buyId == userId)
+                            printf("\n%d\t%d\tItem %d\t%d\t\t%d", sellId, buyId, itemId, quantity, price);
+                    }
+                    printf("\n");
+                    fclose(trade);
                     break;
                 case 5:
                     printf("\nLogged you out!\nExiting...\n");

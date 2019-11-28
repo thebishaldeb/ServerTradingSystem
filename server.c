@@ -45,6 +45,7 @@ struct sellQueue
 
 int main(int argc, char *argv[])
 {
+    // THE SHARED MEMORY REGION
     int i, j;
     char buffer[100];
     void *memI = (void *)0;
@@ -68,6 +69,7 @@ int main(int argc, char *argv[])
     int quantity, price, itemId;
     int quantityTemp, priceTemp, itemIdTemp, userIdTemp;
 
+    // THE FILE LOCK REGION
     int fd;
     struct flock f1;
 
@@ -76,6 +78,7 @@ int main(int argc, char *argv[])
     char buf[MAX_MSG];
     int optval = 1;
 
+    // TCP SOCKET REGION
     /* build socket address data structure */
     bzero((char *)&servAddr, sizeof(servAddr));
     servAddr.sin_family = AF_INET;
@@ -167,6 +170,7 @@ int main(int argc, char *argv[])
                             sscanf(buf, "%d ", &textchecker);
                             if (textchecker == 1) // SELL
                             {
+                                // FILE LOCK SECTION START
                                 f1.l_type = F_WRLCK;
                                 f1.l_whence = SEEK_SET;
                                 f1.l_start = 0;
@@ -179,6 +183,9 @@ int main(int argc, char *argv[])
                                 }
                                 while (fcntl(fd, F_SETLK, &f1) < 0)
                                     ;
+
+                                // FILE LOCK SECTION END
+
                                 sscanf(buf, "%*d %d %d %d ", &itemId, &price, &quantity);
                                 printf("\nSale requested of %d no of item %d at %d by trader %d\n", quantity, itemId, price, userId);
                                 FILE *buy = fopen("buy.txt", "r"),
@@ -248,12 +255,20 @@ int main(int argc, char *argv[])
                                 fclose(buyW);
                                 fclose(sell);
                                 fclose(trade);
+
+                                // FILE LOCK SECTION START
                                 f1.l_type = F_UNLCK;
                                 fcntl(fd, F_SETLK, &f1);
                                 close(fd);
+                                // FILE LOCK SECTION END
+
+                                printf(buf, "Request accepted. \n");
+                                sprintf(buf, "Request accepted. \nPlease check the trade status or sale status to check the progress.\n");
+                                send(newSd, buf, strlen(buf) + 1, 0);
                             }
                             else if (textchecker == 2) // BUY
                             {
+                                // FILE LOCK SECTION START
                                 f1.l_type = F_WRLCK;
                                 f1.l_whence = SEEK_SET;
                                 f1.l_start = 0;
@@ -266,6 +281,8 @@ int main(int argc, char *argv[])
                                 }
                                 while (fcntl(fd, F_SETLK, &f1) < 0)
                                     ;
+                                // FILE LOCK SECTION END
+
                                 sscanf(buf, "%*d %d %d %d ", &itemId, &price, &quantity);
                                 printf("\nBuy requested of %d no of item %d at %d by trader %d\n", quantity, itemId, price, userId);
                                 FILE *buy = fopen("buy.txt", "a"),
@@ -335,9 +352,15 @@ int main(int argc, char *argv[])
                                 fclose(buy);
                                 fclose(sellW);
                                 fclose(trade);
+
+                                // FILE LOCK SECTION START
                                 f1.l_type = F_UNLCK;
                                 fcntl(fd, F_SETLK, &f1);
                                 close(fd);
+                                // FILE LOCK SECTION END
+                                printf(buf, "Request accepted. \n");
+                                sprintf(buf, "Request accepted. \nPlease check the trade status or buy status of the item to check the progress.\n");
+                                send(newSd, buf, strlen(buf) + 1, 0);
                             }
                         }
                     }
