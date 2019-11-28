@@ -102,6 +102,12 @@ int main(int argc, char *argv[])
         (items + i)->bestBuy = 0;
     }
 
+    struct buyQueue *buyhead, *tempBuy = NULL, *buyList;
+    struct sellQueue *sellhead, *tempSell = NULL, *sellList;
+
+    int quantity, price, itemId;
+    int quantityTemp, priceTemp, itemIdTemp, userIdTemp;
+
     int sd, newSd, cliLen, len;
     struct sockaddr_in cliAddr, servAddr;
     char buf[MAX_MSG];
@@ -199,16 +205,13 @@ int main(int argc, char *argv[])
                             sscanf(buf, "%d ", &textchecker);
                             if (textchecker == 1) // SELL
                             {
-                                int quantity, price, itemId;
-                                int quantityTemp, priceTemp, itemIdTemp, userIdTemp;
                                 sscanf(buf, "%*d %d %d %d ", &itemId, &price, &quantity);
                                 printf("\nSale requested of %d no of item %d at %d by trader %d\n", quantity, itemId, price, userId);
                                 FILE *buy = fopen("buy.txt", "r"),
                                      *sell = fopen("sell.txt", "a"),
                                      *trade = fopen("trades.txt", "a");
-                                struct buyQueue *buyhead = (struct buyQueue *)malloc(sizeof(struct buyQueue));
-                                struct buyQueue *tempBuy = NULL;
-                                struct buyQueue *buyList = buyhead;
+                                buyhead = (struct buyQueue *)malloc(sizeof(struct buyQueue));
+                                buyList = buyhead;
                                 while (fgets(buffer, 100, buy) != NULL)
                                 {
                                     sscanf(buffer, "%d %d %d %d", &userIdTemp, &itemIdTemp, &priceTemp, &quantityTemp);
@@ -230,7 +233,7 @@ int main(int argc, char *argv[])
                                     {
                                         if (buyList->quantity > quantity)
                                         {
-                                            buyList->quantity -= quantity;
+                                            buyList->quantity = buyList->quantity - quantity;
                                             fprintf(trade, "%d %d %d %d %d\n", userId, buyList->userId, itemId, buyList->price, quantity);
                                             break;
                                         }
@@ -240,8 +243,9 @@ int main(int argc, char *argv[])
                                             if (buyList->quantity == quantity)
                                             {
                                                 tempBuy = buyList;
-                                                buyList = buyList->next;
+                                                buyList = tempBuy->next;
                                                 free(tempBuy);
+                                                quantity = 0;
                                                 break;
                                             }
                                             else
@@ -254,43 +258,47 @@ int main(int argc, char *argv[])
                                 }
                                 if (quantity > 0)
                                     fprintf(sell, "%d %d %d %d\n", userId, itemId, price, quantity);
-                                buy = fopen("buy.txt", "w");
+                                FILE *buyW = fopen("buy.txt", "w");
                                 while (buyhead->next != NULL)
                                 {
-                                    fprintf(buy, "%d %d %d %d\n", buyhead->userId, buyhead->itemId, buyhead->price, buyhead->quantity);
-                                    printf("%d %d %d %d\n", buyhead->userId, buyhead->itemId, buyhead->price, buyhead->quantity);
+                                    fprintf(buyW, "%d %d %d %d\n", buyhead->userId, buyhead->itemId, buyhead->price, buyhead->quantity);
+                                    // printf("%d %d %d %d\n", buyhead->userId, buyhead->itemId, buyhead->price, buyhead->quantity);
                                     tempBuy = buyhead;
-                                    buyhead = buyhead->next;
+                                    buyhead = tempBuy->next;
                                     free(tempBuy);
                                 }
                                 free(buyList);
                                 free(buyhead);
-                                fclose(buy);
+                                fclose(buyW);
                                 fclose(sell);
                                 fclose(trade);
                             }
                             else if (textchecker == 2) // BUY
                             {
-                                int quantity, price, itemId;
-                                int quantityTemp, priceTemp, itemIdTemp, userIdTemp;
                                 sscanf(buf, "%*d %d %d %d ", &itemId, &price, &quantity);
                                 printf("\nBuy requested of %d no of item %d at %d by trader %d\n", quantity, itemId, price, userId);
                                 FILE *buy = fopen("buy.txt", "a"),
                                      *sell = fopen("sell.txt", "r"),
                                      *trade = fopen("trades.txt", "a");
-                                struct sellQueue *sellhead = (struct sellQueue *)malloc(sizeof(struct sellQueue));
-                                struct sellQueue *tempSell = NULL;
-                                struct sellQueue *sellList = sellhead;
+                                sellhead = (struct sellQueue *)malloc(sizeof(struct sellQueue));
+                                tempSell = NULL;
+                                sellList = sellhead;
                                 while (fgets(buffer, 100, sell) != NULL)
                                 {
                                     sscanf(buffer, "%d %d %d %d", &userIdTemp, &itemIdTemp, &priceTemp, &quantityTemp);
-                                    printf("\n NEE - %d %d %d %d\n", userIdTemp, itemIdTemp, priceTemp, quantityTemp);
+                                    printf("\n NEE 1 - %d %d %d %d\n", userIdTemp, itemIdTemp, priceTemp, quantityTemp);
                                     sellList->itemId = itemIdTemp;
+                                    printf("\n1\n");
                                     sellList->quantity = quantityTemp;
+                                    printf("\n2\n");
                                     sellList->price = priceTemp;
+                                    printf("\n3\n");
                                     sellList->userId = userIdTemp;
+                                    printf("\n4\n");
                                     sellList->next = (struct sellQueue *)malloc(sizeof(struct sellQueue));
+                                    printf("\n5\n");
                                     sellList = sellList->next;
+                                    printf("\n6\n");
                                 }
                                 sellList->next = NULL;
                                 fclose(sell);
@@ -303,7 +311,7 @@ int main(int argc, char *argv[])
                                     {
                                         if (sellList->quantity > quantity)
                                         {
-                                            sellList->quantity -= quantity;
+                                            sellList->quantity = sellList->quantity - quantity;
                                             fprintf(trade, "%d %d %d %d %d\n", sellList->userId, userId, itemId, sellList->price, quantity);
                                             break;
                                         }
@@ -313,8 +321,9 @@ int main(int argc, char *argv[])
                                             if (sellList->quantity == quantity)
                                             {
                                                 tempSell = sellList;
-                                                sellList = sellList->next;
+                                                sellList = tempSell->next;
                                                 free(tempSell);
+                                                quantity = 0;
                                                 break;
                                             }
                                             else
@@ -327,19 +336,19 @@ int main(int argc, char *argv[])
                                 }
                                 if (quantity > 0)
                                     fprintf(buy, "%d %d %d %d\n", userId, itemId, price, quantity);
-                                sell = fopen("sell.txt", "w");
+                                FILE *sellW = fopen("sell.txt", "w");
                                 while (sellhead->next != NULL)
                                 {
-                                    printf("\n NEE - %d %d %d %d\n", sellhead->userId, sellhead->itemId, sellhead->price, sellhead->quantity);
-                                    fprintf(sell, "%d %d %d %d\n", sellhead->userId, sellhead->itemId, sellhead->price, sellhead->quantity);
+                                    printf("\n NEE 2 - %d %d %d %d\n", sellhead->userId, sellhead->itemId, sellhead->price, sellhead->quantity);
+                                    fprintf(sellW, "%d %d %d %d\n", sellhead->userId, sellhead->itemId, sellhead->price, sellhead->quantity);
                                     tempSell = sellhead;
-                                    sellhead = sellhead->next;
+                                    sellhead = tempSell->next;
                                     free(tempSell);
                                 }
                                 free(sellList);
                                 free(sellhead);
                                 fclose(buy);
-                                fclose(sell);
+                                fclose(sellW);
                                 fclose(trade);
                             }
                         }
