@@ -13,42 +13,6 @@
 
 #define MEM_SZ 4096
 
-struct item
-{
-    int id;
-    int bestBuy;
-    int bestSell;
-    int quantity;
-};
-
-struct buyQueue
-{
-    int userId;
-    int buyId;
-    int itemId;
-    int quantity;
-    int price;
-};
-
-struct sellQueue
-{
-    int userId;
-    int sellId;
-    int itemId;
-    int quantity;
-    int price;
-};
-
-struct tradeQueue
-{
-    int customerId;
-    int sellerId;
-    int sellId;
-    int itemId;
-    int quantity;
-    int price;
-};
-
 int main(int argc, char *argv[])
 {
     int i;
@@ -121,7 +85,30 @@ int main(int argc, char *argv[])
                 switch (choice)
                 {
                 case 1:
-                    printf("\nDetails  of the trade items:");
+                    printf("\nEnter the id of the trade items between 1, 2 and 3:");
+                    scanf("%d", &choice);
+                    buy = fopen("buy.txt", "r");
+                    sell = fopen("sell.txt", "r");
+                    printf("\nBuy requests:");
+                    printf("\nBuyer\tItem\tQuantity\tPrice per item");
+                    while (fgets(buffer, 100, buy) != NULL)
+                    {
+                        sscanf(buffer, "%d %d %d %d\n", &buyId, &itemId, &price, &quantity);
+                        if (choice == itemId)
+                            printf("\n%d\tItem %d\t%d\t\t%d", buyId, itemId, quantity, price);
+                    }
+                    printf("\n");
+                    fclose(buy);
+                    printf("\nSale Requests:");
+                    printf("\nSeller\tItem\tQuantity\tPrice per item");
+                    while (fgets(buffer, 100, sell) != NULL)
+                    {
+                        sscanf(buffer, "%d %d %d %d\n", &sellId, &itemId, &price, &quantity);
+                        if (choice == itemId)
+                            printf("\n%d\tItem %d\t%d\t\t%d", sellId, itemId, quantity, price);
+                    }
+                    printf("\n");
+                    fclose(sell);
                     break;
                 case 2:
                     printf("\nEnter the details of the item you want to sell:");
@@ -160,9 +147,7 @@ int main(int argc, char *argv[])
                     printf("\nSeller\tBuyer\tItem\tQuantity\tPrice per item");
                     while (fgets(buffer, 100, trade) != NULL)
                     {
-                        // printf("\nEntered");
                         sscanf(buffer, "%d %d %d %d %d\n", &sellId, &buyId, &itemId, &price, &quantity);
-                        // printf("\n TEEHEE %d\t%d\tItem %d\t%d\t%d", sellId, buyId, itemId, price, quantity);
                         if (sellId == userId || buyId == userId)
                             printf("\n%d\t%d\tItem %d\t%d\t\t%d", sellId, buyId, itemId, quantity, price);
                     }
